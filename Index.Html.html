@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elets Event Operations Dashboard 2026</title>
+<style>
+  :root {
+    --navy: #1B2A4A; --blue: #2E5FA3; --lt-blue: #D6E4F7;
+    --gold: #C9A84C; --white: #FFFFFF; --grey: #F5F7FA;
+    --dark: #1A1A2E; --green: #27AE60; --red: #E74C3C; --orange: #F39C12;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #EEF2F7; color: var(--dark); }
+
+  .topbar {
+    background: var(--navy); padding: 0 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px; box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar h1 { color: var(--white); font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .topbar span { color: var(--gold); font-size: 12px; }
+  .sync-btn {
+    background: var(--gold); color: var(--navy); border: none;
+    padding: 7px 16px; border-radius: 6px; font-size: 12px;
+    font-weight: 700; cursor: pointer; transition: opacity .2s; white-space: nowrap;
+  }
+  .sync-btn:hover { opacity: .85; }
+  .sync-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-settings { background: #2E5FA3; color: white; }
+  .gold-bar { height: 4px; background: linear-gradient(90deg, var(--gold), #f0d080, var(--gold)); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: white; border-radius: 16px; padding: 36px 40px;
+    max-width: 580px; width: 94%; box-shadow: 0 24px 64px rgba(0,0,0,.3);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { color: var(--navy); font-size: 18px; margin-bottom: 6px; }
+  .modal p  { color: #555; font-size: 13px; line-height: 1.6; margin-bottom: 16px; }
+  .modal label { font-size: 12px; font-weight: 700; color: var(--navy); display: block; margin-bottom: 5px; margin-top: 12px; }
+  .modal input, .modal select {
+    width: 100%; padding: 10px 14px; border: 1.5px solid #C8D6E8;
+    border-radius: 8px; font-size: 13px; outline: none; background: white;
+  }
+  .modal input:focus, .modal select:focus { border-color: var(--blue); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn-primary   { background: var(--navy); color: white; border: none; padding: 11px 24px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; flex: 1; }
+  .btn-secondary { background: var(--grey); color: var(--navy); border: 1.5px solid #C8D6E8; padding: 11px 24px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+  .step-list { counter-reset: steps; margin: 14px 0; }
+  .step-list li {
+    counter-increment: steps; padding: 9px 0 9px 38px; position: relative;
+    font-size: 12px; color: #444; border-bottom: 1px solid #EEF2F7; line-height: 1.6;
+  }
+  .step-list li:last-child { border-bottom: none; }
+  .step-list li::before {
+    content: counter(steps); position: absolute; left: 0; top: 9px;
+    width: 24px; height: 24px; background: var(--blue); color: white;
+    border-radius: 50%; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-list li code { background: #EEF2F7; padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; color: var(--navy); }
+  .step-list li a { color: var(--blue); }
+
+  .info-box { background: #FFF3CD; border-left: 4px solid var(--gold); padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #7B4F00; margin: 14px 0; line-height: 1.6; }
+  .success-box { background: #D5F5E3; border-left: 4px solid var(--green); padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #1E8449; margin: 14px 0; }
+  .error-box   { background: #FADBD8; border-left: 4px solid var(--red);   padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #922B21; margin: 14px 0; }
+  #modal-feedback { display: none; }
+
+  /* ── STATUS BAR ── */
+  .status-bar { padding: 7px 32px; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  .status-bar.ok   { background: #D5F5E3; color: #1E8449; }
+  .status-bar.err  { background: #FADBD8; color: #922B21; }
+  .status-bar.info { background: #D6EAF8; color: #1A5276; }
+  .status-bar.warn { background: #FEF9E7; color: #7D6608; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; padding: 20px 32px 8px; }
+  .kpi-card { background: var(--white); border-radius: 10px; padding: 18px 14px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-top: 4px solid var(--blue); transition: transform .15s; }
+  .kpi-card:hover { transform: translateY(-2px); }
+  .kpi-card .num { font-size: 28px; font-weight: 800; color: var(--navy); }
+  .kpi-card .lbl { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+  .kpi-card.upcoming { border-top-color: #2980B9; } .kpi-card.upcoming .num { color: #1A5276; }
+  .kpi-card.inprog   { border-top-color: var(--orange); } .kpi-card.inprog .num { color: #784212; }
+  .kpi-card.planning { border-top-color: var(--green); } .kpi-card.planning .num { color: #1E8449; }
+  .kpi-card.done     { border-top-color: #7F8C8D; } .kpi-card.done .num { color: #4A4A6A; }
+
+  /* ── FILTERS ── */
+  .filters { display: flex; gap: 10px; padding: 14px 32px; flex-wrap: wrap; align-items: center; }
+  .filters label { font-size: 12px; font-weight: 700; color: var(--navy); }
+  .filters input, .filters select { padding: 7px 12px; border: 1.5px solid #C8D6E8; border-radius: 6px; font-size: 13px; background: var(--white); outline: none; }
+  .badge-filter { padding: 6px 14px; border-radius: 20px; border: 2px solid transparent; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
+  .badge-filter.active { border-color: var(--navy); }
+  .bf-all      { background: var(--navy); color: white; }
+  .bf-upcoming { background: #D6EAF8; color: #1A5276; }
+  .bf-inprog   { background: #FDEBD0; color: #784212; }
+  .bf-planning { background: #D5F5E3; color: #1E8449; }
+  .bf-done     { background: #EAECEE; color: #4A4A6A; }
+
+  /* ── EVENT CARDS ── */
+  .section-title { padding: 8px 32px 4px; font-size: 13px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: .6px; }
+  .events-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(370px,1fr)); gap: 16px; padding: 8px 32px 32px; }
+  .event-card { background: var(--white); border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); overflow: hidden; transition: transform .15s, box-shadow .15s; }
+  .event-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+  .card-top { height: 5px; }
+  .card-header { padding: 14px 18px 8px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .card-header h3 { font-size: 14px; font-weight: 700; color: var(--navy); flex: 1; line-height: 1.3; }
+  .status-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; margin-left: 8px; }
+  .s-upcoming  { background: #D6EAF8; color: #1A5276; }
+  .s-inprog    { background: #FDEBD0; color: #784212; }
+  .s-planning  { background: #D5F5E3; color: #1E8449; }
+  .s-done      { background: #EAECEE; color: #4A4A6A; }
+  .s-cancelled { background: #FADBD8; color: #922B21; }
+  .card-meta { padding: 0 18px 10px; display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 12px; color: #555; }
+  .card-meta span { display: flex; align-items: center; gap: 5px; }
+  .card-meta span b { color: var(--navy); }
+  .card-divider { height: 1px; background: #E8EDF5; margin: 0 18px; }
+
+  /* 7-button link grid */
+  .card-links { padding: 12px 18px; display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; }
+  .card-links-bottom { padding: 0 18px 12px; display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
+  .link-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 8px 4px; border-radius: 8px; text-decoration: none; font-size: 10px;
+    font-weight: 700; text-align: center; transition: filter .15s, transform .1s;
+    gap: 3px; border: 1.5px solid transparent; line-height: 1.2;
+  }
+  .link-btn:hover { transform: scale(1.05); filter: brightness(.92); }
+  .link-btn .icon { font-size: 17px; }
+  .link-btn.disabled { opacity: .35; pointer-events: none; cursor: default; }
+  .lb-contract  { background: #FEF9E7; color: #7D6608;  border-color: #F7DC6F; }
+  .lb-floor     { background: #F9EBEA; color: #922B21;  border-color: #F1948A; }
+  .lb-checklist { background: #EBF5FB; color: #1A5276;  border-color: #AED6F1; }
+  .lb-element   { background: #EAFAF1; color: #1E8449;  border-color: #82E0AA; }
+  .lb-rooming   { background: #F4ECF7; color: #6C3483;  border-color: #C39BD3; }
+  .lb-travel    { background: #FDF2E9; color: #784212;  border-color: #F0B27A; }
+  .lb-photos    { background: #FDEDEC; color: #922B21;  border-color: #F1948A; }
+  .lb-stage     { background: #EBF5FB; color: #154360;  border-color: #85C1E9; }
+  .lb-workplan  { background: #F0F3FF; color: #1A237E;  border-color: #9FA8DA; }
+
+  .skeleton { background: linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:200% 100%; animation:shimmer 1.2s infinite; border-radius:12px; height:240px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .no-results { text-align:center; padding:60px; color:#999; font-size:15px; grid-column:1/-1; }
+
+  .footer { background: var(--navy); color: #8899BB; font-size: 11px; text-align: center; padding: 14px; }
+
+  @media(max-width:900px){ .kpi-grid{grid-template-columns:repeat(3,1fr);} }
+  @media(max-width:600px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} .kpi-grid,.events-grid,.filters{padding-left:16px;padding-right:16px;} .card-links{grid-template-columns:repeat(3,1fr);} }
+</style>
+</head>
+<body>
+
+<!-- ══ SETUP MODAL ══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="setup-modal">
+  <div class="modal">
+    <h2>⚡ Connect Your Google Sheet</h2>
+    <p>Your sheet columns have been pre-mapped to match your structure exactly. Just add your Spreadsheet ID and API Key.</p>
+
+    <div class="info-box">
+      ✅ <b>Your column layout is already configured:</b><br>
+      A=S.No &nbsp;•&nbsp; B=Date &nbsp;•&nbsp; C=Event Name &nbsp;•&nbsp; D=Hotel Name &nbsp;•&nbsp;
+      E=Contract &nbsp;•&nbsp; F=Floor Plan &nbsp;•&nbsp; G=Checklist &nbsp;•&nbsp; H=Element Sheet &nbsp;•&nbsp;
+      I=Rooming Sheet &nbsp;•&nbsp; J=Travel Sheet &nbsp;•&nbsp; K=Photos/Videos &nbsp;•&nbsp;
+      L=Stage Design &nbsp;•&nbsp; M=Work Plan
+    </div>
+
+    <label>Spreadsheet ID <span style="color:#999;font-weight:400">(from your Google Sheet URL)</span></label>
+    <input type="text" id="input-sheet-id"
+      placeholder="e.g. 14hu5xSaC1lBfqxwDnndZmosmui60ZvM2Q2O_J0vbAKQ">
+
+    <label>Sheet / Tab Name <span style="color:#999;font-weight:400">(the tab name at the bottom)</span></label>
+    <input type="text" id="input-sheetname" placeholder="e.g. Sheet1  or  Events  or  2026">
+
+    <label>Header Row Number <span style="color:#999;font-weight:400">(which row has S.No, Date, Event Name…)</span></label>
+    <input type="number" id="input-headerrow" placeholder="1" min="1" max="20" value="1">
+
+    <label>Google Sheets API Key</label>
+    <input type="password" id="input-api-key" placeholder="AIzaSy…">
+
+    <div id="modal-feedback"></div>
+
+    <div class="modal-actions">
+      <button class="btn-primary" id="connect-btn" onclick="connectSheet()">🔗 Connect &amp; Load My Events</button>
+      <button class="btn-secondary" onclick="loadDemo()">👁 Preview Demo</button>
+    </div>
+
+    <p style="font-size:11px;color:#999;margin-top:12px;line-height:1.6">
+      🔒 Your API key and Sheet ID are saved only in <b>your browser</b> — never sent to any server.<br>
+      Don't have an API key yet? 
+      <a href="https://console.cloud.google.com" target="_blank" style="color:var(--blue)">Follow the 3-step guide below.</a>
+    </p>
+
+    <div id="debug-panel" style="display:none;margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:700;color:var(--navy)">🔍 Connection Log</span>
+        <button onclick="clearDebug()" style="font-size:11px;background:none;border:1px solid #ddd;border-radius:4px;padding:2px 8px;color:#666;cursor:pointer">Clear</button>
+      </div>
+      <div id="debug-log" style="background:#0D1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;max-height:180px;overflow-y:auto;line-height:1.8"></div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid #EEF2F7;margin:16px 0">
+    <p style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">📌 How to get a free API Key (5 minutes):</p>
+    <ol class="step-list">
+      <li>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> and sign in with your Google account.</li>
+      <li>Click <b>Select a project → New Project</b>. Name it anything (e.g. <code>elets-dashboard</code>). Click Create.</li>
+      <li>Go to <b>APIs &amp; Services → Enable APIs &amp; Services</b>. Search for <code>Google Sheets API</code> and click <b>Enable</b>.</li>
+      <li>Go to <b>APIs &amp; Services → Credentials → + Create Credentials → API Key</b>. Copy the key shown.</li>
+      <li>Open your Google Sheet → click <b>Share</b> (top right) → under General Access choose <b>"Anyone with the link → Viewer"</b>.</li>
+      <li>Your Sheet ID is the long text in the URL between <code>/d/</code> and <code>/edit</code>. For example:<br>
+        <code>docs.google.com/spreadsheets/d/<b>14hu5xSa…vbAKQ</b>/edit</code>
+      </li>
+      <li>Paste both above and click <b>Connect &amp; Load My Events</b>.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ══ MAIN DASHBOARD ════════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <h1>⚡ ELETS EVENT OPERATIONS  •  MASTER DASHBOARD  •  2026</h1>
+  <div class="topbar-right">
+    <span id="last-sync-label">Not connected</span>
+    <button class="sync-btn" id="sync-btn" onclick="syncData()">↻ Sync Sheet</button>
+    <button class="sync-btn btn-settings" onclick="openSetup()">⚙ Settings</button>
+  </div>
+</div>
+<div class="gold-bar"></div>
+
+<div class="status-bar info" id="status-bar">
+  <div class="dot"></div>
+  <span id="status-msg">Connect your Google Sheet to load your live event data.</span>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card">         <div class="num" id="kpi-total">—</div>    <div class="lbl">Total Events</div></div>
+  <div class="kpi-card upcoming"><div class="num" id="kpi-upcoming">—</div> <div class="lbl">Upcoming</div></div>
+  <div class="kpi-card inprog">  <div class="num" id="kpi-inprog">—</div>   <div class="lbl">In Progress</div></div>
+  <div class="kpi-card planning"><div class="num" id="kpi-planning">—</div> <div class="lbl">Planning</div></div>
+  <div class="kpi-card done">    <div class="num" id="kpi-done">—</div>     <div class="lbl">Completed</div></div>
+</div>
+
+<div class="filters">
+  <label>FILTER:</label>
+  <button class="badge-filter bf-all active" onclick="setFilter('All')">All</button>
+  <button class="badge-filter bf-upcoming"   onclick="setFilter('Upcoming')">Upcoming</button>
+  <button class="badge-filter bf-inprog"     onclick="setFilter('In Progress')">In Progress</button>
+  <button class="badge-filter bf-planning"   onclick="setFilter('Planning')">Planning</button>
+  <button class="badge-filter bf-done"       onclick="setFilter('Completed')">Completed</button>
+  &nbsp;
+  <label>SEARCH:</label>
+  <input type="text" id="search-input" placeholder="Event name, hotel, date…" oninput="renderCards()">
+</div>
+
+<div class="section-title" id="result-label">—</div>
+<div class="events-grid" id="events-grid">
+  <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+</div>
+
+<div class="footer">
+  Elets Technomedia Pvt Ltd  •  Event Operations Dashboard  •  2026  •  Live data from Google Sheets  •  Prashant Panchal
+</div>
+
+<script>
+// ══ YOUR EXACT COLUMN MAPPING ═════════════════════════════════════════════
+// A=0, B=1, C=2 … M=12
+const COL = {
+  sno:      0,   // A - S.No
+  date:     1,   // B - Date
+  name:     2,   // C - Event Name
+  hotel:    3,   // D - Hotel Name
+  contract: 4,   // E - Contract
+  floor:    5,   // F - Floor Plan
+  checklist:6,   // G - Checklist
+  element:  7,   // H - Element Sheet
+  rooming:  8,   // I - Rooming Sheet
+  travel:   9,   // J - Travel Sheet
+  photos:   10,  // K - Photos/Videos
+  stage:    11,  // L - Stage Design
+  workplan: 12,  // M - Work Plan
+};
+
+let EVENTS = [];
+let activeFilter = "All";
+
+// ── Debug logger ─────────────────────────────────────────────────────────
+const DEBUG_COLORS = { info:'#58A6FF', success:'#3FB950', error:'#FF7B72', warn:'#D29922' };
+function debugLog(type, msg) {
+  const panel = document.getElementById('debug-panel');
+  const log   = document.getElementById('debug-log');
+  if (!panel || !log) return;
+  panel.style.display = 'block';
+  const color = DEBUG_COLORS[type] || '#CCC';
+  const time  = new Date().toLocaleTimeString();
+  const line  = document.createElement('div');
+  line.style.color = color;
+  line.textContent = `[${time}] ${msg}`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+function clearDebug() {
+  const log = document.getElementById('debug-log');
+  if (log) log.innerHTML = '';
+}
+
+// ── Config helpers ────────────────────────────────────────────────────────
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem('elets_cfg') || '{}'); } catch(e) { return {}; }
+}
+function saveConfig() {
+  const cfg = {
+    sheetId:   (document.getElementById('input-sheet-id').value   || '').trim(),
+    apiKey:    (document.getElementById('input-api-key').value    || '').trim(),
+    sheetName: (document.getElementById('input-sheetname').value  || '').trim() || 'Sheet1',
+    headerRow: parseInt(document.getElementById('input-headerrow').value) || 1,
+  };
+  localStorage.setItem('elets_cfg', JSON.stringify(cfg));
+  return cfg;
+}
+function restoreForm() {
+  const c = getConfig();
+  if (c.sheetId)   document.getElementById('input-sheet-id').value  = c.sheetId;
+  if (c.apiKey)    document.getElementById('input-api-key').value   = c.apiKey;
+  if (c.sheetName) document.getElementById('input-sheetname').value = c.sheetName;
+  if (c.headerRow) document.getElementById('input-headerrow').value = c.headerRow;
+}
+
+// ── Fetch Google Sheet ────────────────────────────────────────────────────
+async function fetchSheet(cfg) {
+  const name = encodeURIComponent(cfg.sheetName || 'Sheet1');
+  const url  = `https://sheets.googleapis.com/v4/spreadsheets/${cfg.sheetId}/values/${name}?key=${cfg.apiKey}`;
+
+  debugLog('info', '⏳ Sending request to Google Sheets API...');
+  debugLog('info', `URL: ...spreadsheets/${cfg.sheetId.slice(0,8)}…/values/${cfg.sheetName}?key=${cfg.apiKey.slice(0,8)}…`);
+
+  let res;
+  try {
+    res = await fetch(url);
+  } catch(netErr) {
+    // fetch() itself threw — means network blocked, no internet, or CORS preflight killed
+    debugLog('error', `❌ Network error: ${netErr.message}`);
+    debugLog('warn',  '👉 This usually means: (a) no internet, (b) browser blocked the request, or (c) you are opening the file from a local path — try using a local server.');
+    throw new Error(`Network error — ${netErr.message}. Try opening the file via a local server or check your internet connection.`);
+  }
+
+  debugLog('info', `HTTP status: ${res.status} ${res.statusText}`);
+
+  if (!res.ok) {
+    let errBody = {};
+    try { errBody = await res.json(); } catch(_) {}
+    const apiMsg = errBody.error?.message || errBody.error?.status || `HTTP ${res.status}`;
+    debugLog('error', `❌ API error ${res.status}: ${apiMsg}`);
+
+    if (res.status === 400) {
+      debugLog('warn', '👉 400 = Bad request. Your API key may be malformed or missing.');
+      throw new Error(`400 Bad Request — ${apiMsg}. Check your API key is pasted correctly.`);
+    }
+    if (res.status === 403) {
+      debugLog('warn', '👉 403 = Permission denied. Either:');
+      debugLog('warn', '   (1) Your sheet is NOT set to "Anyone with the link → Viewer"');
+      debugLog('warn', '   (2) Google Sheets API is not enabled in your Cloud project');
+      debugLog('warn', '   (3) Your API key has HTTP referrer restrictions blocking this file');
+      throw new Error(`403 Access Denied — ${apiMsg}`);
+    }
+    if (res.status === 404) {
+      debugLog('warn', '👉 404 = Not found. Either:');
+      debugLog('warn', '   (1) Spreadsheet ID is wrong (check the URL)');
+      debugLog('warn', `   (2) Tab name "${cfg.sheetName}" does not exist in the sheet`);
+      throw new Error(`404 Not Found — "${cfg.sheetName}" tab or Sheet ID not found.`);
+    }
+    if (res.status === 429) {
+      debugLog('warn', '👉 429 = Too many requests. Wait a minute and try again.');
+      throw new Error('429 Rate limited — wait a minute and try again.');
+    }
+    throw new Error(`HTTP ${res.status} — ${apiMsg}`);
+  }
+
+  const data = await res.json();
+  const rows = data.values || [];
+  debugLog('success', `✅ Success! Got ${rows.length} rows from Google Sheets.`);
+  return rows;
+}
+
+// ── Parse rows → event objects ────────────────────────────────────────────
+function parseRows(rows, cfg) {
+  const skip = (cfg.headerRow || 1);            // rows before data
+  const data = rows.slice(skip);                // skip header(s)
+
+  return data
+    .filter(r => r && (r[COL.name] || '').trim())   // skip empty rows
+    .map(r => {
+      const g = i => (i < r.length ? (r[i] || '').trim() : '');
+      return {
+        sno:      g(COL.sno),
+        date:     g(COL.date),
+        name:     g(COL.name)     || '(Unnamed)',
+        hotel:    g(COL.hotel)    || '—',
+        status:   guessStatus(g(COL.date)),
+        links: {
+          contract:  g(COL.contract),
+          floor:     g(COL.floor),
+          checklist: g(COL.checklist),
+          element:   g(COL.element),
+          rooming:   g(COL.rooming),
+          travel:    g(COL.travel),
+          photos:    g(COL.photos),
+          stage:     g(COL.stage),
+          workplan:  g(COL.workplan),
+        }
+      };
+    });
+}
+
+// Auto-detect status from date
+function guessStatus(dateStr) {
+  if (!dateStr) return 'Upcoming';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 'Upcoming';
+  const now  = new Date();
+  const diff = (d - now) / 86400000;
+  if (diff < -1)  return 'Completed';
+  if (diff < 2)   return 'In Progress';
+  if (diff < 30)  return 'Upcoming';
+  return 'Planning';
+}
+
+// ── Connect ───────────────────────────────────────────────────────────────
+async function connectSheet() {
+  const cfg = saveConfig();
+  if (!cfg.sheetId || !cfg.apiKey) {
+    showFeedback('error', 'Please enter both Spreadsheet ID and API Key.');
+    return;
+  }
+  const btn = document.getElementById('connect-btn');
+  btn.disabled = true; btn.textContent = '⏳ Connecting…';
+  showFeedback('', '');
+  debugLog('info', '── New connection attempt ──────────────────');
+  debugLog('info', `Sheet ID: ${cfg.sheetId.slice(0,12)}…`);
+  debugLog('info', `Tab name: "${cfg.sheetName}"  |  Header row: ${cfg.headerRow}`);
+  debugLog('info', `API Key: ${cfg.apiKey.slice(0,8)}…`);
+  try {
+    const rows = await fetchSheet(cfg);
+    EVENTS = parseRows(rows, cfg);
+    if (!EVENTS.length) throw new Error('No event rows found. Check your Tab name and Header Row number.');
+    localStorage.setItem('elets_cache', JSON.stringify({ events: EVENTS, time: Date.now() }));
+    closeSetup();
+    setStatus('ok', `✅ Connected! ${EVENTS.length} events loaded from your Google Sheet.`);
+    document.getElementById('last-sync-label').textContent = `Synced ${new Date().toLocaleTimeString()}`;
+    renderCards();
+  } catch(e) {
+    debugLog('error', `Final error: ${e.message}`);
+    showFeedback('error', `❌ ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = '🔗 Connect & Load My Events';
+  }
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────
+async function syncData() {
+  const cfg = getConfig();
+  if (!cfg.sheetId || !cfg.apiKey) { openSetup(); return; }
+  const btn = document.getElementById('sync-btn');
+  btn.disabled = true; btn.textContent = '⏳ Syncing…';
+  setStatus('info', 'Fetching latest data from Google Sheets…');
+  try {
+    const rows = await fetchSheet(cfg);
+    EVENTS = parseRows(rows, cfg);
+    localStorage.setItem('elets_cache', JSON.stringify({ events: EVENTS, time: Date.now() }));
+    setStatus('ok', `✅ Synced! ${EVENTS.length} events loaded — ${new Date().toLocaleTimeString()}`);
+    document.getElementById('last-sync-label').textContent = `Synced ${new Date().toLocaleTimeString()}`;
+    renderCards();
+  } catch(e) {
+    setStatus('err', `❌ Sync failed: ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = '↻ Sync Sheet';
+  }
+}
+
+// ── Demo data ─────────────────────────────────────────────────────────────
+function loadDemo() {
+  EVENTS = [
+    { sno:'1', date:'15-Jul-2026', name:'Digital Governance Summit 2026', hotel:'The Leela Palace, New Delhi', status:'Upcoming',
+      links:{contract:'#',floor:'#',checklist:'#',element:'#',rooming:'#',travel:'#',photos:'',stage:'#',workplan:'#'} },
+    { sno:'2', date:'22-Jul-2026', name:'EduTech Innovation Forum 2026',  hotel:'Trident Nariman Point, Mumbai', status:'Upcoming',
+      links:{contract:'#',floor:'#',checklist:'#',element:'#',rooming:'#',travel:'#',photos:'',stage:'',workplan:'#'} },
+    { sno:'3', date:'10-Aug-2026', name:'Smart Cities Conclave 2026',     hotel:'ITC Gardenia, Bengaluru',       status:'Planning',
+      links:{contract:'#',floor:'',checklist:'',element:'',rooming:'',travel:'',photos:'',stage:'',workplan:''} },
+    { sno:'4', date:'20-Apr-2026', name:'Digital India Annual Review',    hotel:'Taj Palace, New Delhi',         status:'Completed',
+      links:{contract:'#',floor:'#',checklist:'#',element:'#',rooming:'#',travel:'#',photos:'#',stage:'#',workplan:'#'} },
+    { sno:'5', date:'02-May-2026', name:'National Education Summit',      hotel:'ITC Grand Chola, Chennai',      status:'Completed',
+      links:{contract:'#',floor:'#',checklist:'#',element:'#',rooming:'#',travel:'#',photos:'#',stage:'#',workplan:'#'} },
+  ];
+  closeSetup();
+  setStatus('warn', '👁 Demo mode — showing sample data. Click ⚙ Settings to connect your real Google Sheet.');
+  renderCards();
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────
+function openSetup()  { restoreForm(); document.getElementById('setup-modal').classList.remove('hidden'); }
+function closeSetup() { document.getElementById('setup-modal').classList.add('hidden'); }
+
+function setStatus(type, msg) {
+  const bar = document.getElementById('status-bar');
+  bar.className = `status-bar ${type}`;
+  document.getElementById('status-msg').textContent = msg;
+}
+
+function showFeedback(type, msg) {
+  const el = document.getElementById('modal-feedback');
+  if (!msg) { el.style.display='none'; return; }
+  el.className = type === 'error' ? 'error-box' : 'success-box';
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.badge-filter').forEach(b => b.classList.remove('active'));
+  const map = {'All':'bf-all','Upcoming':'bf-upcoming','In Progress':'bf-inprog','Planning':'bf-planning','Completed':'bf-done'};
+  document.querySelector('.'+map[f])?.classList.add('active');
+  renderCards();
+}
+
+function statusClass(s) {
+  return {'Upcoming':'s-upcoming','In Progress':'s-inprog','Planning':'s-planning',
+          'Completed':'s-done','Cancelled':'s-cancelled'}[s] || 's-upcoming';
+}
+function statusTopColor(s) {
+  return {'Upcoming':'#2980B9','In Progress':'#E67E22','Planning':'#27AE60',
+          'Completed':'#95A5A6','Cancelled':'#E74C3C'}[s] || '#2E5FA3';
+}
+
+function linkBtn(url, cls, icon, label) {
+  if (url && url !== '#' && url !== '')
+    return `<a href="${url}" class="link-btn ${cls}" target="_blank"><span class="icon">${icon}</span>${label}</a>`;
+  return `<span class="link-btn ${cls} disabled"><span class="icon">${icon}</span>${label}</span>`;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function renderCards() {
+  if (!EVENTS.length) return;
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const ORDER  = {Upcoming:0,'In Progress':1,Planning:2,Completed:3,Cancelled:4};
+
+  const filtered = EVENTS
+    .filter(e => {
+      if (activeFilter !== 'All' && e.status !== activeFilter) return false;
+      if (search && !`${e.name} ${e.hotel} ${e.date}`.toLowerCase().includes(search)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const od = (ORDER[a.status]??5) - (ORDER[b.status]??5);
+      return od !== 0 ? od : new Date(a.date) - new Date(b.date);
+    });
+
+  // KPIs from full set
+  const c = {total:0,upcoming:0,inprog:0,planning:0,done:0};
+  EVENTS.forEach(e => {
+    c.total++;
+    if (e.status==='Upcoming')    c.upcoming++;
+    if (e.status==='In Progress') c.inprog++;
+    if (e.status==='Planning')    c.planning++;
+    if (e.status==='Completed')   c.done++;
+  });
+  document.getElementById('kpi-total').textContent    = c.total;
+  document.getElementById('kpi-upcoming').textContent = c.upcoming;
+  document.getElementById('kpi-inprog').textContent   = c.inprog;
+  document.getElementById('kpi-planning').textContent = c.planning;
+  document.getElementById('kpi-done').textContent     = c.done;
+  document.getElementById('result-label').textContent = `${filtered.length} event${filtered.length!==1?'s':''} shown`;
+
+  const grid = document.getElementById('events-grid');
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="no-results">😕 No events match your filters.</div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(e => {
+    const l = e.links;
+    // Count how many links are filled
+    const filled = Object.values(l).filter(v => v && v !== '').length;
+    const total  = Object.values(l).length;
+    const pct    = Math.round(filled / total * 100);
+    const barColor = pct === 100 ? '#27AE60' : pct >= 50 ? '#F39C12' : '#E74C3C';
+
+    return `
+    <div class="event-card">
+      <div class="card-top" style="background:${statusTopColor(e.status)}"></div>
+      <div class="card-header">
+        <h3>${e.sno ? e.sno+'. ' : ''}${e.name}</h3>
+        <span class="status-badge ${statusClass(e.status)}">${e.status}</span>
+      </div>
+      <div class="card-meta">
+        <span>📅 <b>${e.date || '—'}</b></span>
+        <span>🏨 ${e.hotel}</span>
+      </div>
+
+      <!-- Docs completeness bar -->
+      <div style="padding:0 18px 10px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:4px">
+          <span>Docs ready</span><span style="font-weight:700;color:${barColor}">${filled}/${total} (${pct}%)</span>
+        </div>
+        <div style="background:#E8EDF5;border-radius:4px;height:5px;overflow:hidden">
+          <div style="width:${pct}%;background:${barColor};height:100%;border-radius:4px;transition:width .4s"></div>
+        </div>
+      </div>
+
+      <div class="card-divider"></div>
+
+      <!-- Row 1: 4 links -->
+      <div class="card-links">
+        ${linkBtn(l.contract,  'lb-contract',  '📄', 'Contract')}
+        ${linkBtn(l.floor,     'lb-floor',     '🗺', 'Floor Plan')}
+        ${linkBtn(l.checklist, 'lb-checklist', '✅', 'Checklist')}
+        ${linkBtn(l.element,   'lb-element',   '📋', 'Element Sheet')}
+      </div>
+      <!-- Row 2: remaining 5 -->
+      <div class="card-links" style="padding-top:0">
+        ${linkBtn(l.rooming,  'lb-rooming',  '🛏', 'Rooming')}
+        ${linkBtn(l.travel,   'lb-travel',   '✈️', 'Travel')}
+        ${linkBtn(l.photos,   'lb-photos',   '📸', 'Photos')}
+        ${linkBtn(l.stage,    'lb-stage',    '🎭', 'Stage Design')}
+      </div>
+      <div style="padding:0 18px 12px">
+        ${linkBtn(l.workplan, 'lb-workplan', '📊', 'Work Plan')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const cache = localStorage.getItem('elets_cache');
+  if (cache) {
+    try {
+      const { events, time } = JSON.parse(cache);
+      EVENTS = events;
+      const mins = Math.round((Date.now() - time) / 60000);
+      setStatus('ok', `✅ ${EVENTS.length} events loaded from cache (${mins} min ago). Click ↻ Sync Sheet for latest.`);
+      document.getElementById('last-sync-label').textContent = `Cached ${mins}m ago`;
+      document.getElementById('setup-modal').classList.add('hidden');
+      renderCards();
+      return;
+    } catch(e) {}
+  }
+  // First time — show setup
+  restoreForm();
+  document.getElementById('setup-modal').classList.remove('hidden');
+});
+</script>
+</body>
+</html>
